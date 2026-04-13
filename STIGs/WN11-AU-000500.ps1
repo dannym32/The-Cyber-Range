@@ -22,7 +22,7 @@
 .USAGE
     Paste the code below into powershell ISE, save it as a "script-name".ps1 and run it.
     Example syntax:
-    PS C:\> .\STIG-ID-WN11-AC-000500.ps1  
+    PS C:\> .\STIG-ID-WN11-AU-000500.ps1  
 #>
 
 # Policy registry key for Application event log; ensures setting is enforced via HKLM Policies
