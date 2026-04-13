@@ -4,8 +4,8 @@
 
 .NOTES
     Author          : Daniel Mullins
-    LinkedIn        : linkedin.com/in/joshmadakor/
-    GitHub          : github.com/joshmadakor1
+    LinkedIn        : https://www.linkedin.com/in/daniel-mullins24/
+    GitHub          : https://github.com/dannym32
     Date Created    : 2026-04-13
     Last Modified   : 2026-04-13
     Version         : 1.0
@@ -14,15 +14,15 @@
     STIG-ID         : WN11-AU-000500
 
 .TESTED ON
-    Date(s) Tested  : 
-    Tested By       : 
-    Systems Tested  : 
-    PowerShell Ver. : 
+    Date(s) Tested  : 2026-04-13
+    Tested By       : Daniel Mullins
+    Systems Tested  : Windows 11
+    PowerShell Ver. : 1.23.20211.0
 
 .USAGE
-    Put any usage instructions here.
+    Paste the code below into powershell ISE, save it as a "script-name".ps1 and run it.
     Example syntax:
-    PS C:\> .\STIG-ID-WN10-AU-000500.ps1 
+    PS C:\> .\STIG-ID-WN11-AC-000500.ps1  
 #>
 
 # Policy registry key for Application event log; ensures setting is enforced via HKLM Policies
