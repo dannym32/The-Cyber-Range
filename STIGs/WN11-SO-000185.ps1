@@ -11,7 +11,7 @@
     Version         : 1.0
     CVEs            : N/A
     Plugin IDs      : N/A
-    STIG-ID         : WN11-AU-000500
+    STIG-ID         : WN11-SO-000185
 
 .TESTED ON
     Date(s) Tested  : 2026-04-13
@@ -22,16 +22,14 @@
 .USAGE
     Paste the code below into powershell ISE, save it as a "script-name".ps1 and run it.
     Example syntax:
-    PS C:\> .\STIG-ID-WN11-AU-000500.ps1  
+    PS C:\> .\STIG-ID-WN11-SO-000185.ps1  
 #>
 
-# Policy registry key for Application event log; ensures setting is enforced via HKLM Policies
-$path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\Application"
+$regPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\LSA\pku2u'
+$regName = 'AllowOnlineID'
 
-# Create the key if missing (silent)
-if (-not (Test-Path $path)) {
-    New-Item -Path $path -Force | Out-Null
-}
+# Create the key if missing
+New-Item -Path $regPath -Force | Out-Null
 
-# Set MaxSize to 0x8000 = 32768 KB (32 MB) per STIG; overwrite if exists (silent)
-New-ItemProperty -Path $path -Name "MaxSize" -PropertyType DWord -Value 0x00008000 -Force | Out-Null
+# Set AllowOnlineID to 0 (Disabled)
+New-ItemProperty -Path $regPath -Name $regName -PropertyType DWord -Value 0 -Force | Out-Null
