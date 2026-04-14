@@ -31,7 +31,7 @@ $name = 'NoToastApplicationNotificationOnLockScreen'
 # Ensure the policy key exists, then set the required value (1 = enabled policy = toasts off on lock screen)
 New-Item -Path $path -Force | Out-Null
 New-ItemProperty -Path $path -Name $name -PropertyType DWord -Value 1 -Force | Out-Null
-
+--
 # Every User on a workstation
 $subPath = 'SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\PushNotifications'
 $name    = 'NoToastApplicationNotificationOnLockScreen'
