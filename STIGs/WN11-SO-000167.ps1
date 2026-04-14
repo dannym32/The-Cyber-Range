@@ -26,8 +26,8 @@
     PS C:\> .\STIG-ID-WN11-SO-000185.ps1  
 #>
 
-$path    = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa'
-$name    = 'RestrictRemoteSAM'
+$path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Lsa'
+$name = 'RestrictRemoteSAM'
 $desired = 'O:BAG:BAD:(A;;RC;;;BA)'
 
 New-ItemProperty -Path $path -Name $name -PropertyType String -Value $desired -Force | Out-Null
