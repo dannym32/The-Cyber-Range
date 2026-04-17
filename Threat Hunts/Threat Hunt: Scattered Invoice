@@ -1,77 +1,103 @@
-Threat Hunt: Scattered Invoice
-Table of Contents
-📌 What happened?
-🧰 Platforms and Tools
-📋 Summary of Findings
-🔗 Kill Chain
-🚩 Findings
-🚩 Flag 1: Initial Sign-in Failure Review
-🚩 Flag 2: Initial Successful Access Source Identification
-🚩 Flag 3: MFA Requirement Failure Code Identification
-🚩 Flag 4: MFA Push Fatigue Attempt Count
-🚩 Flag 5: Malicious Application Identification
-🚩 Flag 6: Attacker Device and Operating System Identification
-🚩 Flag 7: First Post Compromise Cloud Activity
-🚩 Flag 8: Malicious Cover Up Inbox Rule Discovery
-🚩 Flag 9: Business Email Compromise Recipient Identification
-🚩 Flag 10: OneDrive Access Under Compromised Session
-🚩 Flag 11: Additional Microsoft Cloud Application Access
-🚩 Flag 12: Azure AD Session Correlation Identifier
-🚩 Flag 13: Conditional Access Control Gap
-🎯 MITRE ATT&CK Framework Technique Mapping
-💎 Diamond Analysis
-🎯 Victim Summary
-🧾 Conclusion
-🛠️ Recommendations for Remediation
+# Threat Hunt: Scattered Invoice
+
+## Table of Contents
+
+- [📌 What happened?](#-what-happened)
+- [🧰 Platforms and Tools](#-platforms-and-tools)
+- [📋 Summary of Findings](#-summary-of-findings)
+- [🔗 Kill Chain](#-kill-chain)
+- [🚩 Findings](#-findings)
+  - [🚩 Flag 1: Initial Sign-in Failure Review](#-flag-1-initial-sign-in-failure-review)
+  - [🚩 Flag 2: Initial Successful Access Source Identification](#-flag-2-initial-successful-access-source-identification)
+  - [🚩 Flag 3: MFA Requirement Failure Code Identification](#-flag-3-mfa-requirement-failure-code-identification)
+  - [🚩 Flag 4: MFA Push Fatigue Attempt Count](#-flag-4-mfa-push-fatigue-attempt-count)
+  - [🚩 Flag 5: Malicious Application Identification](#-flag-5-malicious-application-identification)
+  - [🚩 Flag 6: Attacker Device and Operating System Identification](#-flag-6-attacker-device-and-operating-system-identification)
+  - [🚩 Flag 7: First Post Compromise Cloud Activity](#-flag-7-first-post-compromise-cloud-activity)
+  - [🚩 Flag 8: Malicious Cover Up Inbox Rule Discovery](#-flag-8-malicious-cover-up-inbox-rule-discovery)
+  - [🚩 Flag 9: Business Email Compromise Recipient Identification](#-flag-9-business-email-compromise-recipient-identification)
+  - [🚩 Flag 10: OneDrive Access Under Compromised Session](#-flag-10-onedrive-access-under-compromised-session)
+  - [🚩 Flag 11: Additional Microsoft Cloud Application Access](#-flag-11-additional-microsoft-cloud-application-access)
+  - [🚩 Flag 12: Azure AD Session Correlation Identifier](#-flag-12-azure-ad-session-correlation-identifier)
+  - [🚩 Flag 13: Conditional Access Control Gap](#-flag-13-conditional-access-control-gap)
+- [🎯 MITRE ATT&CK Framework Technique Mapping](#-mitre-attck-framework-technique-mapping)
+- [💎 Diamond Analysis](#-diamond-analysis)
+- [🎯 Victim Summary](#-victim-summary)
+- [🧾 Conclusion](#-conclusion)
+- [🛠️ Recommendations for Remediation](#️-recommendations-for-remediation)
+
 ---
-📌 What happened?
+
+## 📌 What happened?
+
 Reported 26 February 2026, 09:30 UTC
+
 LogN Pacific Financial Services received an urgent call from their bank's fraud department. A vendor payment of £24,500 was redirected to an unknown account. The receiving bank flagged the transaction as suspicious and froze the funds. The finance team insists they followed standard procedures.
+
 Finance employee Mark Smith reported "weird MFA notifications" on the evening of 25 February. He was at home watching TV and kept getting prompted to approve a sign-in. He assumed it was an IT glitch and eventually approved one to make them stop. The next morning, colleagues discovered inbox rules nobody created.
+
 This report includes
-Timeline reconstruction of adversarial activity
-Detailed queries using Microsoft 365 Defender Advanced Hunting (KQL)
-MITRE ATT&CK mapping to understand TTP alignment
-Diamond Model analysis for adversary profiling
-Evidence-based summaries supporting each flag and behavior discovered
+- Timeline reconstruction of adversarial activity
+- Detailed queries using Microsoft 365 Defender Advanced Hunting (KQL)
+- MITRE ATT&CK mapping to understand TTP alignment
+- Diamond Model analysis for adversary profiling
+- Evidence-based summaries supporting each flag and behavior discovered
+
 ---
-🧰 Platforms and Tools
-Platforms:
-Microsoft Defender for Endpoint
-Microsoft Sentinel (SIEM)
-Tools and Techniques:
-Kusto Query Language (KQL)
-Behavioral analysis of endpoint logs (SigninLogs, CloudAppEvents, EmailEvents)
+
+## 🧰 Platforms and Tools
+
+### Platforms
+- Microsoft Defender for Endpoint
+- Microsoft Sentinel (SIEM)
+
+### Tools and Techniques
+- Kusto Query Language (KQL)
+- Behavioral analysis of endpoint logs (SigninLogs, CloudAppEvents, EmailEvents)
+
 ---
-📋 Summary of Findings
-Flag	Objective Description	Finding
-1	Confirm identity of the targeted BEC user	Mark Smith / m.smith@lognpacific.org was the targeted account in the failed sign in activity
-2	Identify the source of initial successful access	Successful access came from IP 205.147.16.190, first seen from the Netherlands and later from Great Britain
-3	Determine the MFA related failure code	Error Code: 50074 indicating MFA was required but not completed
-4	Count illegitimate MFA push attempts before approval	3 MFA attempts occurred before one was approved
-5	Identify the application used by the attacker	AppDisplayName: One Outlook Web
-6	Identify attacker OS and browser details	Firefox 147.0 on Linux OS
-7	Identify first post compromise activity	The attacker first accessed mail items, then created a forwarding inbox rule named .
-8	Identify additional inbox rules used to hide evidence	Rule name: .. configured to suppress suspicious and security related messages
-9	Identify the recipient targeted in the BEC phase	Recipient: j.reynolds@lognpacific.org received the fake invoice via thread hijacking
-10	Determine whether cloud file storage was accessed	Microsoft OneDrive for Business was accessed under the compromised session
-11	Determine whether other Microsoft cloud applications were accessed	Microsoft 365 SharePoint Online was also accessed
-12	Identify the session artifact linking attacker actions	AAD Session ID: 00225cfa-a0ff-fb46-a079-5d152fcdf72a
-13	Identify the security control gap that allowed the intrusion	No conditional access policies were assigned for risky or unmanaged devices
+
+## 📋 Summary of Findings
+
+| Flag | Objective Description | Finding |
+|---|---|---|
+| 1 | Confirm identity of the targeted BEC user | Mark Smith / m.smith@lognpacific.org was the targeted account in the failed sign in activity |
+| 2 | Identify the source of initial successful access | Successful access came from IP 205.147.16.190, first seen from the Netherlands and later from Great Britain |
+| 3 | Determine the MFA related failure code | Error Code: 50074 indicating MFA was required but not completed |
+| 4 | Count illegitimate MFA push attempts before approval | 3 MFA attempts occurred before one was approved |
+| 5 | Identify the application used by the attacker | AppDisplayName: One Outlook Web |
+| 6 | Identify attacker OS and browser details | Firefox 147.0 on Linux OS |
+| 7 | Identify first post compromise activity | The attacker first accessed mail items, then created a forwarding inbox rule named . |
+| 8 | Identify additional inbox rules used to hide evidence | Rule name: .. configured to suppress suspicious and security related messages |
+| 9 | Identify the recipient targeted in the BEC phase | Recipient: j.reynolds@lognpacific.org received the fake invoice via thread hijacking |
+| 10 | Determine whether cloud file storage was accessed | Microsoft OneDrive for Business was accessed under the compromised session |
+| 11 | Determine whether other Microsoft cloud applications were accessed | Microsoft 365 SharePoint Online was also accessed |
+| 12 | Identify the session artifact linking attacker actions | AAD Session ID: 00225cfa-a0ff-fb46-a079-5d152fcdf72a |
+| 13 | Identify the security control gap that allowed the intrusion | No conditional access policies were assigned for risky or unmanaged devices |
+
 ---
-🔗 Kill Chain
+
+## 🔗 Kill Chain
+
 ---
-🚩 Findings
-🚩 Flag 1: Initial Sign-in Failure Review
-Objective:  
+
+## 🚩 Findings
+
+### 🚩 Flag 1: Initial Sign-in Failure Review
+
+#### Objective  
 Confirm the identity involved in the suspicious activity by matching the targeted user against known failed sign in attempts.
-Flag Value:  
+
+#### Flag Value  
 m.smith@lognpacific.org / Mark Smith
-What to Hunt:  
+
+#### What to Hunt  
 Failed sign in attempts tied to the suspected user, including the principal name, identity, IP address, authentication method, and protocol used during the failed attempts.
-Detection Strategy:  
+
+#### Detection Strategy  
 Filter SigninLogs for usernames containing smith and restrict to failed results to identify the targeted account associated with the suspicious authentication activity.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName contains "smith"
@@ -79,20 +105,29 @@ SigninLogs
 | project TimeGenerated, UserPrincipalName, UserId, AuthenticationMethodsUsed, IPAddress,
 Identity, AuthenticationProtocol, ResultSignature
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This confirms the victim identity at the start of the hunt and anchors later authentication, inbox rule, and email activity to the correct compromised user account.
+
 ---
-🚩 Flag 2: Initial Successful Access Source Identification
-Objective:  
+
+### 🚩 Flag 2: Initial Successful Access Source Identification
+
+#### Objective  
 Determine where the first successful malicious access came from by identifying the IP address and location associated with the successful sign in.
-Flag Value:  
+
+#### Flag Value  
 205.147.16.190, Netherlands, later activity from Great Britain
-What to Hunt:  
+
+#### What to Hunt  
 Successful sign in events for the compromised account, with emphasis on remote IP address, geolocation, and the time the first successful session was established.
-Detection Strategy:  
+
+#### Detection Strategy  
 Query SigninLogs for successful authentication events tied specifically to m.smith@lognpacific.org and review the IP and location fields to isolate the attacker’s access point.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName == "m.smith@lognpacific.org"
@@ -100,20 +135,29 @@ SigninLogs
 | project TimeGenerated, UserPrincipalName, UserId, IPAddress, Identity, ResultSignature,
 Location
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This establishes the attacker’s initial access point and provides a pivot value for linking subsequent cloud activity, inbox rule creation, and email abuse to the same session.
+
 ---
-🚩 Flag 3: MFA Requirement Failure Code Identification
-Objective:  
+
+### 🚩 Flag 3: MFA Requirement Failure Code Identification
+
+#### Objective  
 Identify the specific failure code proving MFA was required but not completed during the attacker’s login attempts.
-Flag Value:  
+
+#### Flag Value  
 50074
-What to Hunt:  
+
+#### What to Hunt  
 Failed authentication events involving the compromised user where the result code indicates interrupted or incomplete MFA activity.
-Detection Strategy:  
+
+#### Detection Strategy  
 Search SigninLogs for failed sign ins involving the targeted user and review ResultType alongside location and risk indicators to identify the MFA related failure code.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName contains "smith"
@@ -121,20 +165,29 @@ SigninLogs
 | project TimeGenerated, UserPrincipalName, UserId, IPAddress, Identity, ResultSignature,
 Location, ResultType, RiskLevelDuringSignIn
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This is a direct indicator that the attacker encountered MFA controls before eventually succeeding, supporting the later assessment of MFA fatigue activity.
+
 ---
-🚩 Flag 4: MFA Push Fatigue Attempt Count
-Objective:  
+
+### 🚩 Flag 4: MFA Push Fatigue Attempt Count
+
+#### Objective  
 Determine how many illegitimate MFA push attempts occurred before the victim approved one.
-Flag Value:  
+
+#### Flag Value  
 3 attempts before a successful approval
-What to Hunt:  
+
+#### What to Hunt  
 A sequence of failed and successful sign in events surrounding the compromised user, ordered chronologically to measure repeated push activity leading to eventual access.
-Detection Strategy:  
+
+#### Detection Strategy  
 Use SigninLogs to pull both failed and successful events for the user and sort them by time to count the number of unsuccessful prompts preceding the successful sign in.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName contains "smith"
@@ -143,20 +196,29 @@ SigninLogs
 Location, ResultType, RiskLevelDuringSignIn
 | order by TimeGenerated desc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 Repeated authentication prompts followed by a single success strongly support an MFA fatigue or push bombing intrusion pattern.
+
 ---
-🚩 Flag 5: Malicious Application Identification
-Objective:  
+
+### 🚩 Flag 5: Malicious Application Identification
+
+#### Objective  
 Identify which application the attacker used to gain access to the compromised account.
-Flag Value:  
+
+#### Flag Value  
 One Outlook Web
-What to Hunt:  
+
+#### What to Hunt  
 Successful and failed sign in records containing application display data for the compromised user.
-Detection Strategy:  
+
+#### Detection Strategy  
 Query SigninLogs for both failed and successful sign in events tied to the user, then review AppDisplayName chronologically to isolate the application used during the intrusion.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName contains "smith"
@@ -165,20 +227,29 @@ SigninLogs
 Location, ResultType, RiskLevelDuringSignIn, AppDisplayName
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This identifies the service entry point and confirms the compromise was conducted through web based Microsoft 365 access rather than a local endpoint client.
+
 ---
-🚩 Flag 6: Attacker Device and Operating System Identification
-Objective:  
+
+### 🚩 Flag 6: Attacker Device and Operating System Identification
+
+#### Objective  
 Determine the operating system and device characteristics associated with the attacker’s authentication activity.
-Flag Value:  
+
+#### Flag Value  
 Firefox 147.0 on Linux OS
-What to Hunt:  
+
+#### What to Hunt  
 Authentication records containing device details and authentication application device details for the compromised user.
-Detection Strategy:  
+
+#### Detection Strategy  
 Review SigninLogs for successful and failed events tied to the compromised account and project device metadata to determine browser and operating system indicators associated with the MFA activity.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName contains "smith"
@@ -188,20 +259,29 @@ Location, ResultType, RiskLevelDuringSignIn, AppDisplayName, DeviceDetail,
 AuthenticationAppDeviceDetails
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This provides useful profiling data about the attacker’s environment and helps distinguish adversary activity from normal employee authentication patterns.
+
 ---
-🚩 Flag 7: First Post Compromise Cloud Activity
-Objective:  
+
+### 🚩 Flag 7: First Post Compromise Cloud Activity
+
+#### Objective  
 Find the first action the attacker took after gaining access in order to begin reconstructing the intrusion timeline.
-Flag Value:  
+
+#### Flag Value  
 MailItemsAccessed followed by inbox rule creation activity
-What to Hunt:  
+
+#### What to Hunt  
 Cloud activity from the attacker’s IP across Microsoft 365 services, with special attention to mail access and subsequent rule creation.
-Detection Strategy:  
+
+#### Detection Strategy  
 Query CloudAppEvents for the attacker IP address and sort chronologically to identify the earliest cloud actions taken immediately after successful access.
-KQL Query:
+
+#### KQL Query
 ```kql
 CloudAppEvents
 | where IPAddress == "205.147.16.190"
@@ -209,20 +289,29 @@ CloudAppEvents
 RawEventData
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This marks the transition from account compromise to operational abuse of the mailbox and shows immediate adversary intent to monitor or steal financial correspondence.
+
 ---
-🚩 Flag 8: Malicious Cover Up Inbox Rule Discovery
-Objective:  
+
+### 🚩 Flag 8: Malicious Cover Up Inbox Rule Discovery
+
+#### Objective  
 Identify any additional inbox rules created to hide or suppress evidence of the compromise.
-Flag Value:  
+
+#### Flag Value  
 Rule name .. configured to suppress suspicious messages
-What to Hunt:  
+
+#### What to Hunt  
 Additional inbox rule creation activity from the attacker’s IP, especially rules tied to deletion, concealment, or security themed keywords.
-Detection Strategy:  
+
+#### Detection Strategy  
 Continue reviewing CloudAppEvents from the same attacker IP in chronological order and inspect rule creation details in RawEventData for suspicious filters and stop processing behavior.
-KQL Query:
+
+#### KQL Query
 ```kql
 CloudAppEvents
 | where IPAddress == "205.147.16.190"
@@ -230,20 +319,29 @@ CloudAppEvents
 RawEventData
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This shows active defense evasion. The attacker was not only forwarding useful finance emails but also suppressing security warnings and other messages that could expose the intrusion.
+
 ---
-🚩 Flag 9: Business Email Compromise Recipient Identification
-Objective:  
+
+### 🚩 Flag 9: Business Email Compromise Recipient Identification
+
+#### Objective  
 Determine who received the attacker’s fraudulent email after the mailbox was compromised.
-Flag Value:  
+
+#### Flag Value  
 j.reynolds@lognpacific.org
-What to Hunt:  
+
+#### What to Hunt  
 Outbound email activity sent from the compromised mailbox and originating from the attacker IP, including subject, recipient, and delivery context.
-Detection Strategy:  
+
+#### Detection Strategy  
 Query EmailEvents for mail sent from m.smith@lognpacific.org using the attacker’s IP to identify the recipient targeted in the BEC phase of the attack.
-KQL Query:
+
+#### KQL Query
 ```kql
 EmailEvents
 | where SenderFromAddress == "m.smith@lognpacific.org"
@@ -251,20 +349,29 @@ EmailEvents
 | project TimeGenerated, SenderFromAddress, SenderIPv4, RecipientEmailAddress, Subject,
 To, UrlCount, EmailDirection
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This confirms the BEC target, the fraud delivery method, and that the malicious email was sent from an internal trusted account within the same attacker controlled session.
+
 ---
-🚩 Flag 10: OneDrive Access Under Compromised Session
-Objective:  
+
+### 🚩 Flag 10: OneDrive Access Under Compromised Session
+
+#### Objective  
 Determine whether the attacker accessed Microsoft cloud resources beyond the mailbox itself.
-Flag Value:  
+
+#### Flag Value  
 Microsoft OneDrive for Business accessed
-What to Hunt:  
+
+#### What to Hunt  
 Cloud application events from the attacker IP involving file access activity outside Exchange Online.
-Detection Strategy:  
+
+#### Detection Strategy  
 Use CloudAppEvents filtered to the attacker IP and the FileAccessed action type to determine whether the compromised account was used to access file storage services.
-KQL Query:
+
+#### KQL Query
 ```kql
 CloudAppEvents
 | where IPAddress == "205.147.16.190"
@@ -273,20 +380,29 @@ CloudAppEvents
 RawEventData
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This shows the compromise extended beyond mailbox abuse and into cloud file access, increasing potential exposure and impact.
+
 ---
-🚩 Flag 11: Additional Microsoft Cloud Application Access
-Objective:  
+
+### 🚩 Flag 11: Additional Microsoft Cloud Application Access
+
+#### Objective  
 Identify whether the attacker authenticated to any Microsoft cloud applications other than Exchange Online.
-Flag Value:  
+
+#### Flag Value  
 Microsoft 365 SharePoint Online
-What to Hunt:  
+
+#### What to Hunt  
 Sign in activity from the attacker IP showing different Microsoft application display names tied to the same compromised account.
-Detection Strategy:  
+
+#### Detection Strategy  
 Search SigninLogs for the attacker IP and review AppDisplayName values in chronological order to determine whether additional Microsoft cloud applications were accessed.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where IPAddress == "205.147.16.190"
@@ -294,20 +410,29 @@ SigninLogs
 Location, AppDisplayName
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This broadens the scope of the incident from mailbox compromise to multi application cloud access, indicating a wider blast radius.
+
 ---
-🚩 Flag 12: Azure AD Session Correlation Identifier
-Objective:  
+
+### 🚩 Flag 12: Azure AD Session Correlation Identifier
+
+#### Objective  
 Identify the Azure AD session identifier linking the attacker’s cloud actions into one traceable session.
-Flag Value:  
+
+#### Flag Value  
 00225cfa-a0ff-fb46-a079-5d152fcdf72a
-What to Hunt:  
+
+#### What to Hunt  
 Cloud application events from the attacker IP containing shared session metadata in the raw event payload.
-Detection Strategy:  
+
+#### Detection Strategy  
 Filter CloudAppEvents to the attacker IP and inspect RawEventData over time to extract the Azure AD session identifier associated with the attacker’s activity chain.
-KQL Query:
+
+#### KQL Query
 ```kql
 CloudAppEvents
 | where IPAddress == "205.147.16.190"
@@ -315,20 +440,29 @@ CloudAppEvents
 RawEventData
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This gives a high value correlation artifact for tying together authentication, mailbox manipulation, OneDrive access, and SharePoint activity under the same adversary session.
+
 ---
-🚩 Flag 13: Conditional Access Control Gap
-Objective:  
+
+### 🚩 Flag 13: Conditional Access Control Gap
+
+#### Objective  
 Determine whether conditional access policies were in place to challenge or block risky or unmanaged access.
-Flag Value:  
+
+#### Flag Value  
 No conditional access policies assigned for risky or unmanaged devices
-What to Hunt:  
+
+#### What to Hunt  
 Authentication records containing ConditionalAccessStatus values for the compromised user across the failed and successful sign in sequence.
-Detection Strategy:  
+
+#### Detection Strategy  
 Use SigninLogs for the compromised account, include both failed and successful events, and review the ConditionalAccessStatus field to identify whether any policy enforcement occurred.
-KQL Query:
+
+#### KQL Query
 ```kql
 SigninLogs
 | where UserPrincipalName contains "smith"
@@ -338,53 +472,75 @@ Location, ResultType, RiskLevelDuringSignIn, AppDisplayName, DeviceDetail,
 AuthenticationAppDeviceDetails, ConditionalAccessStatus
 | order by TimeGenerated asc
 ```
-Evidence:
-Why This Matters:  
+
+#### Evidence
+
+#### Why This Matters  
 This explains why the attacker’s foreign, browser based, unmanaged access path was not blocked or more aggressively challenged after repeated suspicious MFA activity.
+
 ---
-🎯 MITRE ATT&CK Framework Technique Mapping
-MITRE Technique	ID	Description
-Multi-Factor Authentication Request Generation	T1621	Repeated MFA prompts were used to pressure the victim into approving a sign-in request, consistent with MFA fatigue or push bombing.
-Email Hiding Rules	T1564.008	Malicious inbox rules were created to hide or suppress emails by forwarding, filtering, or deleting messages to conceal the attacker’s activity.
+
+## 🎯 MITRE ATT&CK Framework Technique Mapping
+
+| MITRE Technique | ID | Description |
+|---|---|---|
+| Multi-Factor Authentication Request Generation | T1621 | Repeated MFA prompts were used to pressure the victim into approving a sign-in request, consistent with MFA fatigue or push bombing. |
+| Email Hiding Rules | T1564.008 | Malicious inbox rules were created to hide or suppress emails by forwarding, filtering, or deleting messages to conceal the attacker’s activity. |
+
 ---
-💎 Diamond Analysis
+
+## 💎 Diamond Analysis
+
 Scattered Spider is the assessed adversary in this threat hunt. The victim was Mark Smith and LogN Pacific Financial Services, with a downstream impact on finance workflows and recipient j.reynolds@lognpacific.org. The adversary’s capabilities included MFA fatigue, malicious inbox rules, thread hijacking, and access to Exchange Online, OneDrive, and SharePoint. The infrastructure observed included IP 205.147.16.190, One Outlook Web, Firefox 147.0 on Linux, an attacker-controlled forwarding address at insights@duck.com, and a linked AAD session ID. Together, these elements form a Diamond Model profile consistent with a Scattered Spider style financially motivated BEC intrusion.
+
 ---
-🎯 Victim Summary
-Category	Victim / Asset
-Primary user	Mark Smith
-Compromised account	m.smith@lognpacific.org
-Secondary targeted user	j.reynolds@lognpacific.org
-Organization	LogN Pacific Financial Services
-Affected mailbox platform	Exchange Online / One Outlook Web access
-Affected cloud storage	Microsoft OneDrive for Business
-Affected collaboration platform	Microsoft 365 SharePoint Online
-Business assets targeted	Finance emails, invoice and payment related correspondence, hijacked email thread
-Known victim devices	None explicitly identified in report
-Known shared paths	None explicitly identified in report
+
+## 🎯 Victim Summary
+
+| Category | Victim / Asset |
+|---|---|
+| Primary user | Mark Smith |
+| Compromised account | m.smith@lognpacific.org |
+| Secondary targeted user | j.reynolds@lognpacific.org |
+| Organization | LogN Pacific Financial Services |
+| Affected mailbox platform | Exchange Online / One Outlook Web access |
+| Affected cloud storage | Microsoft OneDrive for Business |
+| Affected collaboration platform | Microsoft 365 SharePoint Online |
+| Business assets targeted | Finance emails, invoice and payment related correspondence, hijacked email thread |
+| Known victim devices | None explicitly identified in report |
+| Known shared paths | None explicitly identified in report |
+
 ---
-🧾 Conclusion
+
+## 🧾 Conclusion
+
 The April 2026 Cyber Threat Hunt: Scattered Invoice revealed a financially motivated business email compromise centered on identity abuse rather than endpoint malware. The intrusion began with repeated MFA push attempts against finance employee Mark Smith’s Microsoft 365 account, culminating in one approved sign-in that granted the attacker access through One Outlook Web from an external IP tied first to the Netherlands and later to Great Britain. Once inside, the attacker rapidly shifted from account access to operational abuse of the mailbox, accessed mail items, and created malicious inbox rules designed both to forward finance-related messages to an attacker-controlled external address and to suppress suspicious or security-themed emails that might expose the compromise.
+
 The activity then progressed into direct fraud operations. Using the compromised internal account, the attacker targeted j.reynolds@lognpacific.org with a fake invoice delivered through thread hijacking, making the message appear more legitimate and reducing the likelihood of gateway detection. The same attacker-controlled session was also used to access Microsoft OneDrive for Business and Microsoft 365 SharePoint Online, showing that the incident extended beyond simple mailbox abuse and into broader cloud resource exposure. The linked Azure AD session ID further demonstrated that the authentication, mailbox manipulation, fraud delivery, and cloud application access all formed part of one continuous adversary session.
+
 The tradecraft observed in this hunt aligns with MFA fatigue and email hiding rule abuse, which the report maps to MITRE ATT&CK techniques T1621 and T1564.008. The report’s adversary assessment identifies Scattered Spider as the most likely threat actor based on the combination of MFA push bombing, finance-focused BEC activity, mailbox rule manipulation, and use of legitimate cloud infrastructure. Just as important, the hunt exposed a critical defensive weakness: no conditional access policies were assigned for risky or unmanaged devices, allowing foreign browser-based access to proceed without stronger enforcement.
+
 This hunt underscores the importance of:
-Strong conditional access controls for unmanaged and risky sign-ins
-Detection and response for repeated MFA push activity and anomalous foreign access
-Continuous monitoring for mailbox rule creation, especially forwarding and concealment rules
-Correlation of Exchange Online, OneDrive, SharePoint, and sign-in telemetry to track full cloud session abuse
-Immediate containment through account disablement and session revocation when active mailbox compromise is confirmed
+- Strong conditional access controls for unmanaged and risky sign-ins
+- Detection and response for repeated MFA push activity and anomalous foreign access
+- Continuous monitoring for mailbox rule creation, especially forwarding and concealment rules
+- Correlation of Exchange Online, OneDrive, SharePoint, and sign-in telemetry to track full cloud session abuse
+- Immediate containment through account disablement and session revocation when active mailbox compromise is confirmed
+
 ---
-🛠️ Recommendations for Remediation
-Disable the compromised account immediately and revoke all active sessions tied to it. The report identifies m.smith@lognpacific.org as the compromised account and states the first containment action is to disable that account.
-Remove all malicious inbox rules from the compromised mailbox. The report shows one forwarding rule named . and one concealment rule named .., both used to hide and route sensitive finance emails.
-Reset the user’s password and require fresh MFA registration. The account was accessed after repeated MFA prompts were approved, so existing credentials and MFA trust should be treated as compromised.
-Block or review any external forwarding permissions across the tenant. The attacker used the mailbox to forward messages to insights@duck.com, which means external forwarding controls should be reviewed and restricted.
-Notify and protect downstream recipients affected by the thread hijack, especially j.reynolds@lognpacific.org. That recipient received the fake invoice and may need mail trace review, message removal, and fraud validation.
-Investigate and validate all recent payment or invoice activity handled by the finance team. The incident involved a redirected vendor payment of £24,500, so related transactions, approvals, and vendor banking changes should be audited.
-Review OneDrive and SharePoint activity under the compromised session for data access, download, sharing, and possible exfiltration. The report confirms access to both OneDrive for Business and SharePoint Online.
-Use the AAD session ID and attacker IP to scope all related activity across Microsoft 365. The report provides both the attacker IP 205.147.16.190 and the linked AAD session ID, which should be used for broader hunting and cleanup.
-Implement conditional access policies for risky and unmanaged sign ins. The report identifies the absence of such policies as a key defensive gap that allowed the browser based foreign access path to proceed.
-Strengthen MFA protections against push fatigue. Repeated MFA prompts were central to the compromise, so the environment should reduce reliance on blind approval based prompts and increase resistance to MFA fatigue scenarios.
-Alert on new inbox rules, external forwarding rules, and suspicious message suppression patterns. The attacker established both forwarding and concealment rules immediately after mailbox access, making this a high value detection gap.
-Train finance and high risk users to report repeated MFA prompts and unexpected sign in requests immediately. The victim approved one prompt to make the notifications stop, which directly enabled the compromise.
-Hunt for similar activity across other finance or executive accounts. The observed pattern involved cloud sign in abuse, inbox rule creation, thread hijacking, and finance themed targeting, which should be checked tenant wide for additional compromise.
+
+## 🛠️ Recommendations for Remediation
+
+1. Disable the compromised account immediately and revoke all active sessions tied to it. The report identifies m.smith@lognpacific.org as the compromised account and states the first containment action is to disable that account.
+2. Remove all malicious inbox rules from the compromised mailbox. The report shows one forwarding rule named . and one concealment rule named .., both used to hide and route sensitive finance emails.
+3. Reset the user’s password and require fresh MFA registration. The account was accessed after repeated MFA prompts were approved, so existing credentials and MFA trust should be treated as compromised.
+4. Block or review any external forwarding permissions across the tenant. The attacker used the mailbox to forward messages to insights@duck.com, which means external forwarding controls should be reviewed and restricted.
+5. Notify and protect downstream recipients affected by the thread hijack, especially j.reynolds@lognpacific.org. That recipient received the fake invoice and may need mail trace review, message removal, and fraud validation.
+6. Investigate and validate all recent payment or invoice activity handled by the finance team. The incident involved a redirected vendor payment of £24,500, so related transactions, approvals, and vendor banking changes should be audited.
+7. Review OneDrive and SharePoint activity under the compromised session for data access, download, sharing, and possible exfiltration. The report confirms access to both OneDrive for Business and SharePoint Online.
+8. Use the AAD session ID and attacker IP to scope all related activity across Microsoft 365. The report provides both the attacker IP 205.147.16.190 and the linked AAD session ID, which should be used for broader hunting and cleanup.
+9. Implement conditional access policies for risky and unmanaged sign ins. The report identifies the absence of such policies as a key defensive gap that allowed the browser based foreign access path to proceed.
+10. Strengthen MFA protections against push fatigue. Repeated MFA prompts were central to the compromise, so the environment should reduce reliance on blind approval based prompts and increase resistance to MFA fatigue scenarios.
+11. Alert on new inbox rules, external forwarding rules, and suspicious message suppression patterns. The attacker established both forwarding and concealment rules immediately after mailbox access, making this a high value detection gap.
+12. Train finance and high risk users to report repeated MFA prompts and unexpected sign in requests immediately. The victim approved one prompt to make the notifications stop, which directly enabled the compromise.
+13. Hunt for similar activity across other finance or executive accounts. The observed pattern involved cloud sign in abuse, inbox rule creation, thread hijacking, and finance themed targeting, which should be checked tenant wide for additional compromise.
