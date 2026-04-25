@@ -1,1 +1,430 @@
+# Devices Accidentally Exposed to the Internet
 
+## Microsoft Defender for Endpoint Threat Hunt Portfolio Project
+
+---
+
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Scenario Summary](#scenario-summary)
+- [Environment and Scope](#environment-and-scope)
+- [Tools and Data Sources](#tools-and-data-sources)
+- [Stage 1 Preparation](#stage-1-preparation)
+- [Stage 2 Data Collection](#stage-2-data-collection)
+- [Stage 3 Data Analysis](#stage-3-data-analysis)
+- [Stage 4 Investigation](#stage-4-investigation)
+- [Stage 5 Response](#stage-5-response)
+- [Stage 6 Documentation](#stage-6-documentation)
+- [Stage 7 Improvement](#stage-7-improvement)
+- [MITRE ATT&CK Mapping](#mitre-attck-mapping)
+- [Final Conclusion](#final-conclusion)
+
+---
+
+# Project Overview
+
+This project documents a threat hunt investigation involving a Windows virtual machine that was accidentally exposed to the public internet.
+
+The purpose of the hunt was to determine whether the exposed device received brute force login attempts and whether any of those attempts resulted in successful unauthorized access.
+
+This investigation used Microsoft Defender for Endpoint telemetry and KQL queries to review:
+
+- Internet facing device status
+- Failed login attempts
+- Successful login attempts
+- Suspicious remote IP addresses
+- Brute force behavior
+- Possible unauthorized access
+- MITRE ATT&CK technique mapping
+- Remediation and improvement steps
+
+---
+
+# Scenario Summary
+
+During routine maintenance, the security team was tasked with investigating virtual machines in a shared services environment that may have been accidentally exposed to the public internet.
+
+The main concern was that exposed systems could be discovered by attackers, scanners, or bots and then targeted with brute force login attempts.
+
+Older systems were considered higher risk because they may not have had account lockout policies configured, meaning attackers could attempt repeated password guesses without being blocked.
+
+---
+
+# Environment and Scope
+
+| Category | Details |
+|---|---|
+| Project Type | Threat Hunt |
+| Platform | Microsoft Defender for Endpoint |
+| Query Language | KQL |
+| Device Investigated | `windows-target-` |
+| Original Scope Reference | `windows-target-1` |
+| Primary Risk | Public internet exposure |
+| Main Threat Concern | Brute force login attempts |
+| Primary Tables Used | `DeviceInfo`, `DeviceLogonEvents` |
+| Final Determination | No confirmed successful unauthorized login |
+
+---
+
+# Tools and Data Sources
+
+| Tool or Data Source | Purpose |
+|---|---|
+| Microsoft Defender for Endpoint | Used to collect endpoint telemetry |
+| Advanced Hunting | Used to run KQL queries against security logs |
+| DeviceInfo | Used to confirm whether the device was internet facing |
+| DeviceLogonEvents | Used to review failed and successful logon activity |
+| MITRE ATT&CK | Used to map observed activity to adversary techniques |
+
+---
+
+# Stage 1 Preparation
+
+## Goal
+
+Set up the hunt by defining what suspicious behavior needed to be investigated.
+
+## Hunt Objective
+
+The objective was to identify whether a virtual machine was accidentally exposed to the public internet and determine whether that exposure led to successful unauthorized access.
+
+## Hypothesis
+
+```text
+If a virtual machine was exposed to the public internet, then external attackers may have attempted brute force logins. If account lockout controls were missing or weak, one of those attempts may have resulted in successful unauthorized access.
+```
+
+## Risk Factors
+
+| Risk Factor | Why It Matters |
+|---|---|
+| Internet facing VM | Public exposure allows attackers and bots to discover the system |
+| Remote login access | Exposed login services are common brute force targets |
+| Weak credentials | Increases the chance of successful password guessing |
+| No account lockout | Allows repeated login attempts without blocking the attacker |
+| Shared services role | A compromised shared services system could impact important infrastructure |
+
+---
+
+# Stage 2 Data Collection
+
+## Goal
+
+Gather relevant endpoint and authentication data to determine whether the device was exposed and whether suspicious login activity occurred.
+
+## Data Collection Questions
+
+| Question | Reason |
+|---|---|
+| Was the device exposed to the public internet? | Confirms whether the system had external attack surface |
+| Did the device receive failed login attempts? | Identifies possible brute force activity |
+| Which remote IPs were involved? | Helps identify suspicious sources |
+| Did any suspicious IPs successfully log in? | Determines whether brute force attempts may have succeeded |
+| Were successful logons expected or suspicious? | Helps separate normal activity from compromise |
+
+## Data Sources Reviewed
+
+| Table | Purpose |
+|---|---|
+| `DeviceInfo` | Confirm whether the device was internet facing |
+| `DeviceLogonEvents` | Review failed and successful authentication events |
+
+## Query: Confirm Internet Facing Status
+
+```kql
+DeviceInfo
+| where DeviceName == "windows-target-"
+| where IsInternetFacing == true
+| order by Timestamp desc
+```
+
+## Finding
+
+| Field | Value |
+|---|---|
+| Device | `windows-target-` |
+| Internet Facing | `True` |
+| Last Internet Facing Time | `2026-03-14T05:50:59.251508Z` |
+
+## Interpretation
+
+The device was confirmed to be internet facing. This validated the need to review authentication activity for brute force attempts and possible successful unauthorized access.
+
+---
+
+# Stage 3 Data Analysis
+
+## Goal
+
+Analyze collected data to test the hypothesis and identify suspicious authentication patterns.
+
+The primary focus was failed logon activity from remote IP addresses.
+
+## Query: Identify Failed Remote Login Attempts
+
+```kql
+DeviceLogonEvents
+| where LogonType has_any("Network", "Interactive", "RemoteInteractive", "Unlock")
+| where ActionType == "LogonFailed"
+| where isnotempty(RemoteIP)
+| summarize Attempts = count() by ActionType, RemoteIP, DeviceName
+| order by Attempts desc
+```
+
+## Finding
+
+The exposed environment showed repeated failed login attempts from multiple remote IP addresses.
+
+This behavior is consistent with brute force or password spraying activity.
+
+## Top Failed Login Sources
+
+| Remote IP | Failed Attempts | Assessment |
+|---|---:|---|
+| `20.113.160.179` | 473 | High volume failed login source |
+| `38.225.206.208` | 346 | High volume failed login source |
+| `185.156.73.169` | 319 | Repeated failed login source |
+| `80.94.95.238` | 233 | Repeated failed login source |
+| `83.222.191.62` | Reviewed | Included in suspicious IP validation set |
+
+## Analysis Summary
+
+The failed login activity showed that the internet facing system was being targeted by external sources.
+
+Failed logons alone did not prove compromise. The next step was to determine whether any suspicious remote IP addresses successfully authenticated.
+
+---
+
+# Stage 4 Investigation
+
+## Goal
+
+Investigate suspicious findings and determine whether brute force attempts resulted in successful unauthorized access.
+
+## Query: Check Whether Suspicious IPs Successfully Logged In
+
+```kql
+let RemoteIPsInQuestion = dynamic(["20.113.160.179","38.225.206.208", "80.94.95.238",
+"185.156.73.169", "83.222.191.62"]);
+DeviceLogonEvents
+| where LogonType has_any("Network", "Interactive", "RemoteInteractive", "Unlock")
+| where ActionType == "LogonSuccess"
+| where RemoteIP has_any(RemoteIPsInQuestion)
+```
+
+## Finding
+
+| Result | Meaning |
+|---|---|
+| Query returned no results | The top suspicious failed login IPs did not successfully authenticate |
+
+## Interpretation
+
+The remote IP addresses responsible for the highest volume of failed login attempts were not observed successfully logging in.
+
+This reduced the likelihood that the most obvious brute force sources compromised the device.
+
+---
+
+## Query: Review Successful Logons for labuser0
+
+```kql
+DeviceLogonEvents
+| where DeviceName == "windows-target-"
+| where LogonType == "Network"
+| where ActionType == "LogonSuccess"
+| where AccountName == "labuser0"
+| summarize count()
+```
+
+## Finding
+
+| Account | Successful Logons |
+|---|---:|
+| `labuser0` | 12 |
+
+## Interpretation
+
+The only successful logon activity observed in the reviewed period was tied to the `labuser0` account.
+
+The next step was to review the source IP addresses for those successful logons.
+
+---
+
+## Query: Check Failed Logons for labuser
+
+```kql
+DeviceLogonEvents
+| where DeviceName == "windows-target-"
+| where LogonType == "Network"
+| where ActionType == "LogonFailed"
+| where AccountName == "labuser"
+| summarize count()
+```
+
+## Finding
+
+| Account | Failed Logons |
+|---|---:|
+| `labuser` | 0 |
+
+## Interpretation
+
+There was no evidence of repeated failed authentication attempts against the `labuser` account.
+
+---
+
+## Query: Review Successful Login Source IPs for labuser0
+
+```kql
+DeviceLogonEvents
+| where DeviceName == "windows-target-"
+| where LogonType == "Network"
+| where ActionType == "LogonSuccess"
+| where AccountName == "labuser0"
+| summarize LoginCount = count() by DeviceName, ActionType, AccountName, RemoteIP
+```
+
+## Successful Login Review
+
+| Device | Action Type | Account | Remote IP | Login Count | Assessment |
+|---|---|---|---|---:|---|
+| `windows-target-` | `LogonSuccess` | `labuser0` | `10.0.8.5` | 3 | Internal or local source |
+| `windows-target-` | `LogonSuccess` | `labuser0` | `10.0.8.10` | 1 | Internal or local source |
+| `windows-target-` | `LogonSuccess` | `labuser0` | `10.0.8.6` | 2 | Internal or local source |
+| `windows-target-` | `LogonSuccess` | `labuser0` | `10.0.8.9` | 1 | Internal or local source |
+| `windows-target-` | `LogonSuccess` | `labuser0` | `219.122.228.150` | 1 | Reviewed, not confirmed as malicious |
+
+## Investigation Summary
+
+The device was exposed to the public internet and clearly received brute force style login attempts.
+
+However, the investigation did not identify legitimate evidence of successful unauthorized logon activity from the suspicious remote IP addresses reviewed.
+
+---
+
+# Stage 5 Response
+
+## Goal
+
+Mitigate confirmed risks and reduce the chance of future compromise.
+
+## Response Actions Taken
+
+| Response Action | Purpose |
+|---|---|
+| Hardened NSG rules | Restricted RDP traffic to specific approved endpoints |
+| Removed broad public access | Reduced exposure to internet based attackers and bots |
+| Implemented account lockout policy | Prevented unlimited password guessing attempts |
+| Implemented MFA | Added an additional layer of authentication security |
+
+## Recommended Security Controls
+
+| Control | Reason |
+|---|---|
+| Disable public RDP access | RDP should not be directly exposed to the internet |
+| Use VPN or Azure Bastion | Administrative access should require a secure access path |
+| Allowlist trusted IPs | Limits who can attempt remote access |
+| Enforce strong passwords | Reduces password guessing risk |
+| Enable account lockout | Slows or blocks brute force attacks |
+| Require MFA | Protects accounts even if passwords are guessed or stolen |
+| Monitor internet facing devices | Helps detect accidental exposure quickly |
+| Alert on failed logon spikes | Improves brute force detection |
+| Review NSG rules regularly | Prevents accidental public exposure |
+
+---
+
+# Stage 6 Documentation
+
+## Goal
+
+Record the investigation process, findings, response actions, and lessons learned.
+
+## Timeline Summary
+
+| Time or Phase | Event |
+|---|---|
+| Before investigation | `windows-target-` was exposed to the public internet |
+| `2026-03-14T05:50:59.251508Z` | Last confirmed internet facing timestamp |
+| During exposure window | Multiple remote IPs attempted failed logons |
+| Data analysis phase | Top failed login sources were identified |
+| Investigation phase | Suspicious IPs were checked for successful logons |
+| Investigation phase | No successful logons were found from the top suspicious remote IPs |
+| Investigation phase | Successful `labuser0` logons were reviewed |
+| Final determination | No confirmed unauthorized successful logon was identified |
+| Response phase | NSG hardening, account lockout, and MFA were implemented |
+
+## Key Findings
+
+| Finding | Status |
+|---|---|
+| VM was internet facing | Confirmed |
+| Repeated failed login attempts occurred | Confirmed |
+| Brute force style activity was observed | Confirmed |
+| Suspicious top failed IPs successfully logged in | Not observed |
+| Failed logons occurred against `labuser` | Not observed |
+| Successful logons occurred for `labuser0` | Confirmed |
+| Successful `labuser0` logons were confirmed malicious | No |
+| Unauthorized access was proven | No |
+
+## Evidence Based Determination
+
+```text
+The VM was exposed to the public internet and received brute force style login attempts. However, the investigation did not identify legitimate evidence of successful unauthorized logon activity.
+```
+
+---
+
+# Stage 7 Improvement
+
+## Goal
+
+Improve security posture and refine the hunting process for future investigations.
+
+## Security Improvements
+
+| Improvement | Value |
+|---|---|
+| Restrict public inbound access | Reduces internet based attack surface |
+| Use VPN or Bastion access | Adds a controlled access layer |
+| Require MFA | Reduces credential based compromise risk |
+| Enable account lockout | Limits brute force effectiveness |
+| Review NSG rules regularly | Prevents accidental public exposure |
+| Monitor internet facing assets | Detects exposed systems faster |
+| Alert on failed login spikes | Improves early brute force detection |
+| Separate admin accounts | Limits attacker access if one account is compromised |
+
+## Hunting Process Improvements
+
+| Improvement | Reason |
+|---|---|
+| Exclude `10.0.0.0/16` local IPs | Reduces internal network noise |
+| Exclude known Microsoft IPs such as `20.80.241.91` | Reduces false positives |
+| Summarize failed and successful logons with `LoginCount` | Makes authentication trends easier to compare |
+
+---
+
+# MITRE ATT&CK Mapping
+
+| Technique ID | Technique Name | Relevance |
+|---|---|---|
+| `T1190` | Exploit Public Facing Application | The system was exposed to the public internet |
+| `T1110.001` | Brute Force: Password Guessing | Repeated failed logons suggest password guessing |
+| `T1110.003` | Brute Force: Password Spraying | Multiple authentication attempts may indicate password spraying |
+| `T1078` | Valid Accounts | Attackers may have attempted to authenticate using valid accounts |
+| `T1021` | Remote Services | Network and remote interactive logons relate to remote access attempts |
+
+---
+
+# Final Conclusion
+
+This threat hunt confirmed that `windows-target-` was accidentally exposed to the public internet and received repeated failed login attempts from external remote IP addresses.
+
+The activity was consistent with brute force or password spraying behavior. However, the investigation did not confirm successful unauthorized access.
+
+The top suspicious remote IP addresses responsible for failed login attempts did not successfully authenticate. The successful logons that were reviewed were tied to the `labuser0` account and were not confirmed as malicious.
+
+The most important remediation steps were to harden NSG rules, restrict RDP access to approved endpoints, implement account lockout, and enable MFA.
+
+This project demonstrates the importance of continuously monitoring internet facing systems, reviewing failed and successful authentication activity together, and reducing public exposure before attackers can take advantage of misconfigured systems.
