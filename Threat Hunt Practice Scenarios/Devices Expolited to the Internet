@@ -2,22 +2,6 @@ Devices Accidentally Exposed to the Internet
 
 Microsoft Defender for Endpoint Threat Hunt Portfolio Project
 
-Table of Contents
-
-- Project Overview
-- Scenario Summary
-- Environment and Scope
-- Tools and Data Sources
-- Stage 1 Preparation
-- Stage 2 Data Collection
-- Stage 3 Data Analysis
-- Stage 4 Investigation
-- Stage 5 Response
-- Stage 6 Documentation
-- Stage 7 Improvement
-- MITRE ATT&CK Mapping
-- Final Conclusion
-
 Project Overview
 
 This project documents a threat hunt investigation involving a Windows virtual machine that was accidentally exposed to the public internet.
