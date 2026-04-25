@@ -1,1 +1,355 @@
+New Zero Day Announced on News: PwnCrypt Ransomware
 
+Microsoft Defender for Endpoint Threat Hunt Portfolio Project
+
+Project Overview
+
+This project documents a threat hunt investigation involving a newly reported ransomware strain named PwnCrypt.
+
+The ransomware was reported to use a PowerShell based payload to encrypt files on infected systems. The payload used AES 256 encryption and targeted specific directories, including `C:\Users\Public\Desktop`.
+
+The known indicator of compromise was the creation of files containing `.pwncrypt` in the file name. For example, a file named `hello.txt` could become `hello.pwncrypt.txt` after encryption.
+
+The purpose of the hunt was to determine whether PwnCrypt had entered the corporate environment, whether files were encrypted, and what process activity was responsible.
+
+This investigation used Microsoft Defender for Endpoint telemetry and KQL queries to review:
+
+- PwnCrypt file indicators
+- Encrypted file creation
+- PowerShell execution
+- Execution policy bypass activity
+- Malicious script execution
+- Ransomware impact
+- MITRE ATT&CK technique mapping
+- Response and containment actions
+
+Scenario Summary
+
+A new ransomware strain named PwnCrypt was reported in the news.
+
+The ransomware used a PowerShell based payload to encrypt files and prepend `.pwncrypt` into the original file extension.
+
+The CISO was concerned that the ransomware may have spread into the corporate network because the organization had an immature security program and limited user security training.
+
+The hunt was initiated using the known PwnCrypt file indicator:
+
+```text
+.pwncrypt
+```
+
+The investigation focused on whether files containing `pwncrypt` appeared on the target device and whether PowerShell was used to execute the ransomware payload.
+
+Environment and Scope
+
+| Category | Details |
+|---|---|
+| Project Type | Ransomware Threat Hunt |
+| Platform | Microsoft Defender for Endpoint |
+| Query Language | KQL |
+| Device Investigated | `vme-windows-hun` |
+| Original Scenario Device Reference | `vme-windows-hunt` |
+| Primary Risk | Zero day ransomware infection |
+| Ransomware Name | PwnCrypt |
+| Known Indicator | Files containing `.pwncrypt` |
+| Main Threat Concern | File encryption and ransomware impact |
+| Primary Tables Used | `DeviceFileEvents`, `DeviceProcessEvents` |
+| Final Determination | PwnCrypt activity was confirmed on the device |
+
+Tools and Data Sources
+
+| Tool or Data Source | Purpose |
+|---|---|
+| Microsoft Defender for Endpoint | Used to collect endpoint telemetry |
+| Advanced Hunting | Used to run KQL queries against endpoint activity |
+| DeviceFileEvents | Used to identify PwnCrypt encrypted file activity |
+| DeviceProcessEvents | Used to identify PowerShell execution and script activity |
+| MITRE ATT&CK | Used to map observed behavior to adversary techniques |
+
+Stage 1 Preparation
+
+Goal
+
+Set up the hunt by defining what suspicious behavior needed to be investigated.
+
+Hunt Objective
+
+The objective was to determine whether the newly reported PwnCrypt ransomware had impacted the corporate environment.
+
+The hunt focused on identifying known ransomware indicators, encrypted files, and suspicious PowerShell execution.
+
+Hypothesis
+
+```text
+If PwnCrypt ransomware reached the corporate network, then Microsoft Defender for Endpoint telemetry may show files containing `.pwncrypt` and process activity showing PowerShell executing a ransomware payload.
+```
+
+Risk Factors
+
+| Risk Factor | Why It Matters |
+|---|---|
+| Newly reported ransomware | Recent threats may not be fully covered by existing defenses |
+| Immature security program | Increases the chance of delayed detection or weak prevention |
+| Limited user training | Users may be more likely to execute malicious payloads |
+| PowerShell based payload | PowerShell can be abused to run malicious scripts |
+| File encryption behavior | Indicates ransomware impact |
+| Execution policy bypass | May indicate an attempt to bypass normal script restrictions |
+| Known IoC available | Allows focused hunting for `.pwncrypt` file activity |
+
+Stage 2 Data Collection
+
+Goal
+
+Gather relevant file and process telemetry to determine whether PwnCrypt activity existed on the device.
+
+Data Collection Questions
+
+| Question | Reason |
+|---|---|
+| Were any `.pwncrypt` files created? | Confirms whether the known ransomware indicator appeared |
+| Which device contained the suspicious files? | Identifies the impacted endpoint |
+| When were the encrypted files created? | Helps establish the ransomware timeline |
+| Was PowerShell used near the same time? | Helps identify the execution method |
+| Was execution policy bypass used? | Indicates possible defense evasion or restriction bypass |
+| What script or process caused the activity? | Helps determine the delivery and execution path |
+| Was the device isolated after confirmation? | Limits possible spread |
+
+Data Sources Reviewed
+
+| Table | Purpose |
+|---|---|
+| `DeviceFileEvents` | Identify files containing the PwnCrypt indicator |
+| `DeviceProcessEvents` | Review process execution near the time of encrypted file creation |
+
+Query: Search for PwnCrypt File Indicators
+
+```kql
+let VMName = "vme-windows-hun";
+DeviceFileEvents
+| where DeviceName == VMName
+| where FileName contains "pwncrypt"
+| order by Timestamp desc
+```
+
+Finding
+
+The query found multiple files containing `pwncrypt` on the device.
+
+Several important files were infected, prepended with the PwnCrypt indicator, and encrypted.
+
+Observed file activity included encrypted file names related to:
+
+| File Indicator | Assessment |
+|---|---|
+| Employee records files containing `pwncrypt` | Encrypted file activity |
+| Project list files containing `pwncrypt` | Encrypted file activity |
+| Company financial files containing `pwncrypt` | Encrypted file activity |
+| `pwncrypt.ps1` | Suspicious ransomware related PowerShell script |
+
+Interpretation
+
+The presence of files containing `pwncrypt` confirmed that the known ransomware indicator existed on the device.
+
+This supported the hypothesis that PwnCrypt activity had occurred and required a process level investigation to determine how it executed.
+
+Stage 3 Data Analysis
+
+Goal
+
+Analyze the file activity and identify the process activity responsible for the ransomware behavior.
+
+The investigation focused on process execution near the time the suspicious PwnCrypt file activity was observed.
+
+Query: Review Process Activity Around PwnCrypt File Creation
+
+```kql
+let VMName = "vme-windows-hun";
+let specificTime = datetime(2026-03-15T07:08:50.618593Z);
+DeviceProcessEvents
+| where DeviceName == VMName
+| where Timestamp between ((specificTime - 3m) .. (specificTime + 3m))
+| order by Timestamp desc
+| project Timestamp, AccountName, ActionType, FolderPath, ProcessCommandLine, InitiatingProcessCommandLine, FileName
+```
+
+Finding
+
+Process telemetry showed that PowerShell activity occurred around the same time as the PwnCrypt file creation activity.
+
+The process activity showed PowerShell being launched with execution policy bypass and running the PwnCrypt script from `C:\ProgramData`.
+
+Observed suspicious command behavior included:
+
+```text
+cmd.exe /c powershell.exe -ExecutionPolicy Bypass -File C:\programdata\pwncrypt.ps1
+```
+
+Analysis Summary
+
+The file evidence showed encrypted files containing the PwnCrypt indicator.
+
+The process evidence showed PowerShell execution with execution policy bypass around the same time.
+
+Together, the file and process evidence confirmed that PwnCrypt ransomware activity occurred on the device and was executed through a PowerShell based payload.
+
+Stage 4 Investigation
+
+Goal
+
+Investigate the ransomware activity, determine the execution method, and identify whether the activity matched known attacker behavior.
+
+Investigation Findings
+
+| Finding | Status |
+|---|---|
+| Files containing `pwncrypt` were found | Confirmed |
+| Important files were encrypted | Confirmed |
+| `pwncrypt.ps1` was present | Confirmed |
+| PowerShell was used | Confirmed |
+| Execution policy bypass was used | Confirmed |
+| Ransomware activity occurred on `vme-windows-hun` | Confirmed |
+
+Execution Chain
+
+| Step | Activity | Evidence |
+|---|---|---|
+| 1 | PwnCrypt script was introduced to the device | `pwncrypt.ps1` observed |
+| 2 | PowerShell was launched | `powershell.exe` process activity |
+| 3 | Execution restrictions were bypassed | `-ExecutionPolicy Bypass` observed |
+| 4 | PwnCrypt payload executed | `pwncrypt.ps1` ran from `C:\ProgramData` |
+| 5 | Files were encrypted | File names containing `pwncrypt` were created |
+
+Interpretation
+
+The investigation confirmed that the activity was not just the presence of a suspicious file. The device showed both ransomware file impact and the PowerShell execution chain used to run the ransomware payload.
+
+The use of `-ExecutionPolicy Bypass` increased the severity because it showed that the script was run in a way that bypassed normal PowerShell execution restrictions.
+
+Investigation Summary
+
+The device `vme-windows-hun` showed confirmed PwnCrypt ransomware activity.
+
+The ransomware created encrypted files containing the `.pwncrypt` indicator and was executed using PowerShell with execution policy bypass.
+
+The activity matched the known ransomware behavior described in the scenario and required immediate containment.
+
+Stage 5 Response
+
+Goal
+
+Contain the ransomware infection and prevent potential spread across the network.
+
+Response Actions Taken
+
+| Response Action | Purpose |
+|---|---|
+| Immediately isolated the system | Prevented possible ransomware spread |
+| Submitted ticket for rebuild or reimage | Restored the device to a trusted state |
+| Planned detection rule for `pwncrypt` | Improved future detection |
+| Planned blocklist entry for `pwncrypt` | Reduced chance of repeat execution |
+| Awaited management response | Allowed leadership to decide next steps |
+
+Response Summary
+
+The device was immediately isolated after ransomware activity was confirmed.
+
+Because the infection involved ransomware, the best remediation path was to rebuild or reimage the system rather than attempt to trust the infected operating system.
+
+A detection rule and blocklist entry for `pwncrypt` were planned to reduce the chance of the same ransomware activity recurring.
+
+Recommended Security Controls
+
+| Control | Reason |
+|---|---|
+| Isolate infected endpoints immediately | Prevents ransomware spread |
+| Reimage infected systems | Restores the system to a trusted state |
+| Block known ransomware indicators | Prevents known payloads from executing again |
+| Create detection rules for `.pwncrypt` files | Improves early detection |
+| Alert on PowerShell execution policy bypass | Detects suspicious script execution |
+| Restrict PowerShell usage | Reduces script based attack surface |
+| Monitor `C:\ProgramData` script execution | Identifies suspicious script staging |
+| Improve user security training | Reduces risk of users executing malicious payloads |
+| Maintain tested backups | Supports recovery after encryption events |
+| Review endpoint protection configuration | Improves prevention and detection maturity |
+
+Stage 6 Documentation
+
+Goal
+
+Record the investigation process, findings, response actions, and lessons learned.
+
+Timeline Summary
+
+| Time or Phase | Event |
+|---|---|
+| News alert | PwnCrypt ransomware was reported as a new ransomware strain |
+| Hunt preparation | Known IoC `.pwncrypt` was selected for investigation |
+| Initial file review | `DeviceFileEvents` was searched for files containing `pwncrypt` |
+| File finding | Multiple encrypted files containing `pwncrypt` were found |
+| `2026-03-15T07:08:50.618593Z` | Timestamp selected for process pivot |
+| Process review | `DeviceProcessEvents` was searched within three minutes before and after the suspicious timestamp |
+| Process finding | PowerShell execution with execution policy bypass was observed |
+| Payload finding | `pwncrypt.ps1` executed from `C:\ProgramData` |
+| Investigation conclusion | PwnCrypt ransomware activity was confirmed |
+| Response phase | Device was immediately isolated |
+| Recovery planning | Ticket was planned for rebuild or reimage |
+| Prevention planning | Detection rule and blocklist entry for `pwncrypt` were planned |
+
+Key Findings
+
+| Finding | Status |
+|---|---|
+| PwnCrypt indicators were found | Confirmed |
+| Files containing `.pwncrypt` were created | Confirmed |
+| Important files were encrypted | Confirmed |
+| PowerShell was used to execute the payload | Confirmed |
+| Execution policy bypass was used | Confirmed |
+| `pwncrypt.ps1` executed from `C:\ProgramData` | Confirmed |
+| Ransomware activity occurred on `vme-windows-hun` | Confirmed |
+| Device was isolated | Confirmed |
+| Rebuild or reimage was recommended | Confirmed |
+| Detection and blocklist improvements were planned | Confirmed |
+
+Stage 7 Improvement
+
+Goal
+
+Improve security posture to reduce the likelihood and impact of future ransomware infections.
+
+Security Improvements
+
+| Improvement | Value |
+|---|---|
+| Add detection rule for `pwncrypt` | Detects known ransomware file indicators |
+| Add `pwncrypt` to blocklist | Helps prevent repeat execution |
+| Alert on `.pwncrypt` file creation | Provides early warning of ransomware activity |
+| Alert on `ExecutionPolicy Bypass` | Detects suspicious PowerShell behavior |
+| Restrict PowerShell usage | Reduces abuse of script based payloads |
+| Block script execution from `C:\ProgramData` | Prevents common staging path abuse |
+| Improve user security training | Reduces likelihood of payload execution |
+| Maintain offline backups | Supports recovery after ransomware encryption |
+| Test restoration procedures | Ensures recovery process works under pressure |
+| Reimage infected systems | Restores device trust after ransomware activity |
+
+MITRE ATT&CK Mapping
+
+| Technique ID | Technique Name | Relevance |
+|---|---|---|
+| `T1059.001` | Command and Scripting Interpreter: PowerShell | PowerShell was used to execute the ransomware payload |
+| `T1562.001` | Impair Defenses: Disable or Modify Security Tools | Execution policy bypass was used to bypass script restrictions |
+| `T1486` | Data Encrypted for Impact | Files were encrypted as part of ransomware activity |
+| `T1105` | Ingress Tool Transfer | Malicious script was introduced to the host |
+| `T1070.004` | Indicator Removal on Host: File Deletion or Modification | Files were modified during encryption and renamed with the PwnCrypt indicator |
+
+Final Conclusion
+
+This threat hunt confirmed PwnCrypt ransomware activity on `vme-windows-hun`.
+
+The investigation found multiple files containing the known `.pwncrypt` indicator, showing that important files had been encrypted.
+
+A pivot into process telemetry confirmed that PowerShell was used around the same time as the file encryption activity. The process command line showed execution policy bypass and execution of `pwncrypt.ps1` from `C:\ProgramData`.
+
+The system was immediately isolated to reduce the chance of spread. Because ransomware activity was confirmed, the recommended recovery action was to rebuild or reimage the device.
+
+Additional prevention steps included creating a detection rule, adding `pwncrypt` to a blocklist, and improving monitoring for PowerShell execution policy bypass.
+
+This project demonstrates how known indicators of compromise, file telemetry, process telemetry, and response actions can be combined to quickly identify and contain ransomware activity.
