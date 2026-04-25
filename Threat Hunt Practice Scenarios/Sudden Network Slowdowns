@@ -1,1 +1,372 @@
+Sudden Network Slowdowns
 
+Microsoft Defender for Endpoint Threat Hunt Portfolio Project
+
+Project Overview
+
+This project documents a threat hunt investigation involving sudden network slowdowns within an internal 10.0.0.0/16 network.
+
+The server team observed significant network performance degradation on older devices. After external DDoS activity was ruled out, the investigation focused on whether suspicious internal activity was causing the slowdown.
+
+The hunt used Microsoft Defender for Endpoint telemetry and KQL queries to identify excessive failed network connections, investigate possible port scanning, review suspicious process execution, and determine the response actions needed to contain the affected device.
+
+This investigation used Microsoft Defender for Endpoint telemetry and KQL queries to review:
+
+- Failed internal network connections
+- Suspicious local IP activity
+- Sequential connection behavior
+- Possible internal port scanning
+- PowerShell execution
+- Suspicious script activity
+- Administrative account usage
+- MITRE ATT&CK technique mapping
+- Remediation and response steps
+
+Scenario Summary
+
+The server team noticed network performance degradation on older devices connected to the internal 10.0.0.0/16 network.
+
+After external DDoS attacks were ruled out, the security team suspected that something inside the network may have been causing the issue.
+
+The environment allowed internal traffic by default, and PowerShell usage was unrestricted. This created a risk that a device inside the network could run scripts, download large files, or perform port scanning against other internal hosts.
+
+The investigation focused on identifying whether excessive failed connections were occurring and whether those connections were tied to suspicious process activity.
+
+Environment and Scope
+
+| Category | Details |
+|---|---|
+| Project Type | Threat Hunt |
+| Platform | Microsoft Defender for Endpoint |
+| Query Language | KQL |
+| Device Investigated | `vme-windows-hun` |
+| Network Investigated | `10.0.0.0/16` |
+| Suspicious Local IP | `10.1.0.118` |
+| Primary Risk | Internal network scanning |
+| Main Threat Concern | Port scanning and possible discovery activity |
+| Primary Tables Used | `DeviceNetworkEvents`, `DeviceFileEvents`, `DeviceProcessEvents` |
+| Final Determination | Internal port scanning activity was observed and tied to PowerShell script execution |
+
+Tools and Data Sources
+
+| Tool or Data Source | Purpose |
+|---|---|
+| Microsoft Defender for Endpoint | Used to collect endpoint telemetry |
+| Advanced Hunting | Used to run KQL queries against endpoint and network activity |
+| DeviceNetworkEvents | Used to identify failed connection activity and possible port scanning |
+| DeviceProcessEvents | Used to identify suspicious PowerShell and script execution |
+| DeviceFileEvents | Available for file activity review if needed |
+| MITRE ATT&CK | Used to map observed activity to adversary techniques |
+
+Stage 1 Preparation
+
+Goal
+
+Set up the hunt by defining what suspicious behavior needed to be investigated.
+
+Hunt Objective
+
+The objective was to determine whether internal network slowdowns were caused by suspicious activity from a device inside the network.
+
+The investigation focused on identifying excessive failed network connections, possible port scanning behavior, and any process activity that could explain the connection pattern.
+
+Hypothesis
+
+```text
+If a device inside the internal network was causing sudden network slowdowns, then Microsoft Defender for Endpoint telemetry may show excessive failed connection attempts, sequential port activity, or suspicious process execution such as PowerShell launching a port scanning script.
+```
+
+Risk Factors
+
+| Risk Factor | Why It Matters |
+|---|---|
+| Internal traffic allowed by default | Devices may be able to communicate broadly across the network |
+| Unrestricted PowerShell usage | Scripts can be used to automate scanning or discovery |
+| Older devices on the network | Older systems may be more sensitive to connection floods or scanning |
+| No clear internal traffic restrictions | Makes lateral discovery easier |
+| Administrative account usage | Suspicious activity under an admin account increases risk |
+| Sequential failed connections | May indicate port scanning behavior |
+
+Stage 2 Data Collection
+
+Goal
+
+Gather relevant network, file, and process telemetry to determine whether internal network scanning was occurring.
+
+Data Collection Questions
+
+| Question | Reason |
+|---|---|
+| Were there excessive failed network connections? | Helps identify possible scanning or network abuse |
+| Which device generated the failed connections? | Identifies the suspected source system |
+| Which local IP was involved? | Helps isolate the affected host |
+| Were ports being contacted sequentially? | Sequential ports can indicate port scanning |
+| Was suspicious process activity observed near the same time? | Helps connect network behavior to a process |
+| Was PowerShell involved? | PowerShell is commonly used for script based activity |
+| Which account launched the activity? | Helps determine whether an account may have been misused |
+
+Data Sources Reviewed
+
+| Table | Purpose |
+|---|---|
+| `DeviceNetworkEvents` | Identify failed connection activity and possible port scanning |
+| `DeviceProcessEvents` | Review process execution near the suspicious network activity |
+| `DeviceFileEvents` | Review file related evidence if needed |
+
+Query: Identify Failed Network Connections
+
+```kql
+DeviceNetworkEvents
+| where ActionType == "ConnectionFailed"
+| where DeviceName == "vme-windows-hun"
+| summarize ConnectionCount = count() by DeviceName, ActionType, LocalIP
+| order by ConnectionCount desc
+```
+
+Finding
+
+The device `vme-windows-hun` was found failing several outbound network connection requests.
+
+Observed failed connection summary:
+
+| Device Name | Action Type | Local IP | Connection Count |
+|---|---|---|---:|
+| `vme-windows-hun` | `ConnectionFailed` | `10.1.0.118` | 49 |
+| `vme-windows-hun` | `ConnectionFailed` | `::1` | 2 |
+| `vme-windows-hun` | `ConnectionFailed` | `127.0.0.1` | 2 |
+
+Interpretation
+
+The local IP `10.1.0.118` stood out because it had the highest number of failed connection events.
+
+This made it the main IP address selected for additional investigation.
+
+Stage 3 Data Analysis
+
+Goal
+
+Analyze the failed connection activity to determine whether it showed signs of scanning behavior.
+
+The investigation focused on the suspicious local IP address `10.1.0.118`.
+
+Query: Review Failed Connections from Suspicious Local IP
+
+```kql
+let IPInQuestion = "10.1.0.118";
+DeviceNetworkEvents
+| where ActionType == "ConnectionFailed"
+| where LocalIP == IPInQuestion
+| order by Timestamp desc
+```
+
+Finding
+
+After reviewing the failed connection requests from `10.1.0.118` in chronological order, the activity appeared suspicious because the ports followed a sequential pattern.
+
+This behavior was consistent with port scanning.
+
+Analysis Summary
+
+The failed connection activity suggested that the device was attempting to connect across multiple ports. The sequential pattern of port activity supported the possibility that the host was performing network service discovery or scanning internal systems.
+
+Failed network connections alone were not enough to identify the root cause. The next step was to pivot into process execution activity around the time the scan began.
+
+Stage 4 Investigation
+
+Goal
+
+Investigate suspicious findings and determine what process caused the failed network connection activity.
+
+The investigation pivoted from `DeviceNetworkEvents` into `DeviceProcessEvents` around the time the suspected port scan was observed.
+
+Query: Review Process Activity Around Suspected Port Scan
+
+```kql
+let VMName = "vme-windows-hun";
+let specificTime = datetime(2026-03-14T09:19:37.1503016Z);
+DeviceProcessEvents
+| where Timestamp between ((specificTime - 10m) .. (specificTime + 10m))
+| where DeviceName == VMName
+| order by Timestamp desc
+| project Timestamp, FileName, InitiatingProcessCommandLine
+```
+
+Finding
+
+Process telemetry showed suspicious activity around the time of the suspected port scan.
+
+A PowerShell script named `portscan.ps1` was observed launching at:
+
+```text
+2026-03-14T09:19:17.9870122Z
+```
+
+Interpretation
+
+The timing of the PowerShell script aligned with the suspicious failed network connection activity.
+
+This supported the conclusion that the failed connections were caused by scripted port scanning activity.
+
+Query: Identify Account Used to Launch Port Scan Script
+
+```kql
+let VMName = "vme-windows-hun";
+let specificTime = datetime(2026-03-14T09:19:37.1503016Z);
+DeviceProcessEvents
+| where Timestamp between ((specificTime - 10m) .. (specificTime + 10m))
+| where DeviceName == VMName
+| where InitiatingProcessCommandLine contains "portscan"
+| order by Timestamp desc
+| project Timestamp, FileName, InitiatingProcessCommandLine, AccountName
+```
+
+Finding
+
+The port scanning script was launched through PowerShell.
+
+Observed activity:
+
+| Timestamp | File Name | Initiating Process Command Line | Account Name |
+|---|---|---|---|
+| `2026-03-14T09:19:17Z` | `powershell.exe` | `cmd.exe /c powershell.exe -ExecutionPolicy Bypass` | `dhacker` |
+
+Interpretation
+
+The port scan script was executed through PowerShell with execution policy bypass.
+
+The activity was associated with an administrative account. This was not expected behavior and was not intentionally performed by the administrator.
+
+The use of PowerShell with execution policy bypass increased suspicion because it showed script execution in a way that bypassed normal PowerShell execution restrictions.
+
+Additional Host Review
+
+The suspect computer was reviewed directly, and the PowerShell script used to conduct the port scan was observed on the device.
+
+The script was designed to scan a range of IP addresses and common ports, which aligned with the network telemetry showing repeated failed connection attempts.
+
+Investigation Summary
+
+The investigation confirmed that the network slowdown was associated with suspicious internal port scanning activity.
+
+The scan originated from `vme-windows-hun`, involved local IP `10.1.0.118`, and was tied to a PowerShell script named `portscan.ps1`.
+
+The script was launched using an administrative account, but the activity was not expected and was not approved by the administrator.
+
+Stage 5 Response
+
+Goal
+
+Mitigate the confirmed suspicious activity and reduce the chance of further network impact.
+
+Response Actions Taken
+
+| Response Action | Purpose |
+|---|---|
+| Isolated the device | Prevented additional scanning or network impact |
+| Ran a malware scan | Checked for known malware or malicious files |
+| Kept the device isolated | Reduced risk after suspicious behavior was confirmed |
+| Created a reimage or rebuild ticket | Ensured the device would be restored to a trusted state |
+| Reviewed administrative account context | Identified that the activity used an admin account unexpectedly |
+
+Response Summary
+
+The malware scan produced no results.
+
+Out of caution, the device remained isolated and a ticket was created to have it reimaged or rebuilt.
+
+Recommended Security Controls
+
+| Control | Reason |
+|---|---|
+| Restrict PowerShell usage | Reduces the ability to run unauthorized scripts |
+| Monitor PowerShell execution policy bypass | Detects suspicious script execution attempts |
+| Limit internal network access | Reduces the ability to scan broadly across internal hosts |
+| Segment older devices | Limits exposure and performance impact from scanning |
+| Alert on excessive failed connections | Helps detect port scanning earlier |
+| Monitor administrative account activity | Identifies suspicious use of privileged accounts |
+| Require admin activity justification | Helps separate authorized actions from suspicious behavior |
+| Use endpoint isolation quickly | Prevents continued scanning or lateral activity |
+| Reimage suspicious systems | Restores trust when malicious activity cannot be fully ruled out |
+
+Stage 6 Documentation
+
+Goal
+
+Record the investigation process, findings, response actions, and lessons learned.
+
+Timeline Summary
+
+| Time or Phase | Event |
+|---|---|
+| Initial report | Server team reported sudden network slowdowns on older devices |
+| Initial investigation | External DDoS activity was ruled out |
+| Network review | Failed connection activity was reviewed in `DeviceNetworkEvents` |
+| Suspicious IP identified | `10.1.0.118` showed the highest failed connection count |
+| Connection analysis | Failed connections appeared to follow a sequential port pattern |
+| Process pivot | `DeviceProcessEvents` was searched around the suspected scan time |
+| `2026-03-14T09:19:17.9870122Z` | `portscan.ps1` was observed launching through PowerShell |
+| Account review | Activity was associated with the `dhacker` account |
+| Host review | The port scanning script was observed on the suspect computer |
+| Response phase | Device was isolated and a malware scan was run |
+| Post scan action | Malware scan produced no results |
+| Final response | Device remained isolated and a reimage or rebuild ticket was created |
+
+Key Findings
+
+| Finding | Status |
+|---|---|
+| Network slowdown was reported | Confirmed |
+| External DDoS was ruled out | Confirmed |
+| Excessive failed connections were observed | Confirmed |
+| Suspicious local IP `10.1.0.118` was identified | Confirmed |
+| Sequential failed connection behavior was observed | Confirmed |
+| Port scan activity was suspected | Confirmed |
+| PowerShell script `portscan.ps1` was observed | Confirmed |
+| Script used execution policy bypass | Confirmed |
+| Admin account context was used | Confirmed |
+| Malware scan found malware | No |
+| Device was isolated | Confirmed |
+| Reimage or rebuild ticket was created | Confirmed |
+
+Stage 7 Improvement
+
+Goal
+
+Improve security posture to reduce the likelihood and impact of unauthorized internal scanning.
+
+Security Improvements
+
+| Improvement | Value |
+|---|---|
+| Restrict unrestricted PowerShell usage | Reduces script based abuse |
+| Alert on `ExecutionPolicy Bypass` | Detects suspicious PowerShell execution |
+| Monitor for port scanning patterns | Identifies discovery activity earlier |
+| Segment internal networks | Reduces ability to scan large network ranges |
+| Limit east west traffic | Prevents unrestricted host to host communication |
+| Review administrative account activity | Detects misuse of privileged accounts |
+| Enforce least privilege | Reduces unnecessary admin access |
+| Use endpoint isolation procedures | Contains suspicious devices quickly |
+| Rebuild systems after suspicious activity | Restores device trust when intent is unclear |
+
+MITRE ATT&CK Mapping
+
+| Technique ID | Technique Name | Relevance |
+|---|---|---|
+| `T1046` | Network Service Discovery | Port scanning was used to identify reachable services |
+| `T1059.001` | Command and Scripting Interpreter: PowerShell | PowerShell was used to execute the script |
+| `T1087` | Account Discovery | Administrative account context was involved in the activity |
+| `T1078` | Valid Accounts | An admin account was leveraged to execute the script |
+
+Final Conclusion
+
+This threat hunt confirmed that the sudden network slowdowns were associated with suspicious internal port scanning activity.
+
+The investigation identified repeated failed network connections from `vme-windows-hun`, with local IP `10.1.0.118` showing the highest failed connection count.
+
+Further analysis showed that the failed connections followed a pattern consistent with port scanning. A pivot into process telemetry confirmed that a PowerShell script named `portscan.ps1` launched around the same time.
+
+The script was executed through PowerShell using execution policy bypass and was associated with the `dhacker` account. This was not expected behavior and was not approved by the administrator.
+
+The device was isolated, a malware scan was performed, and no malware was found. Because the activity was still suspicious, the device remained isolated and a ticket was created to have it reimaged or rebuilt.
+
+This project demonstrates how failed network connection patterns, process execution telemetry, and account context can be combined to investigate internal network slowdowns and identify suspicious discovery activity.
