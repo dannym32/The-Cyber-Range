@@ -1,1 +1,332 @@
+Suspected Data Exfiltration from PIPd Employee
 
+Microsoft Defender for Endpoint Threat Hunt Portfolio Project
+
+Project Overview
+
+This project documents a threat hunt investigation involving a suspected insider threat scenario.
+
+The investigation focused on an employee named John Doe, who worked in a sensitive department and had recently been placed on a performance improvement plan. After management raised concerns that John may attempt to steal proprietary company information before leaving the organization, his corporate device was reviewed for suspicious activity.
+
+The purpose of the hunt was to determine whether company files were being collected, compressed, staged, or exfiltrated from the device.
+
+This investigation used Microsoft Defender for Endpoint telemetry and KQL queries to review:
+
+- File archive activity
+- Zip file creation
+- PowerShell activity
+- 7zip installation and execution
+- Local data staging
+- Network activity around the time of suspicious file activity
+- Possible data exfiltration
+- MITRE ATT&CK technique mapping
+- Remediation and improvement steps
+
+Scenario Summary
+
+Management raised concern that an employee in a sensitive role may attempt to steal proprietary information after being placed on a performance improvement plan.
+
+The employee had administrator rights on his device and was not heavily restricted in which applications could be used. This created a risk that the employee could install archiving tools, compress company data, stage the files locally, and attempt to move them to a private drive or external destination.
+
+The investigation focused on whether the employee archived sensitive data and whether there was evidence that the archived data left the device.
+
+Environment and Scope
+
+| Category | Details |
+|---|---|
+| Project Type | Insider Threat Hunt |
+| Platform | Microsoft Defender for Endpoint |
+| Query Language | KQL |
+| Device Investigated | `vme-windows-hun` |
+| Original Scenario Device Reference | `vme-windows-hunt` |
+| Primary Risk | Suspected data theft by employee |
+| Main Threat Concern | Data staging and possible exfiltration |
+| Primary Tables Used | `DeviceFileEvents`, `DeviceProcessEvents`, `DeviceNetworkEvents` |
+| Final Determination | Data was archived locally, but no confirmed network exfiltration was observed |
+
+Tools and Data Sources
+
+| Tool or Data Source | Purpose |
+|---|---|
+| Microsoft Defender for Endpoint | Used to collect endpoint telemetry |
+| Advanced Hunting | Used to run KQL queries against endpoint activity |
+| DeviceFileEvents | Used to identify zip file creation and file archive activity |
+| DeviceProcessEvents | Used to review PowerShell, 7zip, and process execution activity |
+| DeviceNetworkEvents | Used to look for possible network exfiltration |
+| MITRE ATT&CK | Used to map observed activity to adversary techniques |
+
+Stage 1 Preparation
+
+Goal
+
+Set up the hunt by defining what suspicious behavior needed to be investigated.
+
+Hunt Objective
+
+The objective was to determine whether John Doe used his corporate device to collect, archive, stage, or exfiltrate company data.
+
+Hypothesis
+
+```text
+If an employee was preparing to steal company data, then endpoint telemetry may show signs of file compression, archive creation, PowerShell usage, suspicious tool installation, local staging, or outbound network activity around the same time.
+```
+
+Risk Factors
+
+| Risk Factor | Why It Matters |
+|---|---|
+| Employee in sensitive department | The user may have access to proprietary or confidential information |
+| Recent performance improvement plan | Creates potential insider threat concern |
+| Local administrator rights | User may install tools or run scripts with fewer restrictions |
+| No strong application restrictions | Increases the chance that unauthorized tools can be used |
+| Archive creation | Compressed files are commonly used before exfiltration |
+| PowerShell activity | PowerShell can be used to download tools, run scripts, or automate staging |
+| Local data staging | Staged files may indicate preparation for exfiltration |
+
+Stage 2 Data Collection
+
+Goal
+
+Gather relevant file, process, and network telemetry to determine whether suspicious data handling occurred.
+
+Data Collection Questions
+
+| Question | Reason |
+|---|---|
+| Were any company files archived? | Archive activity may indicate data collection |
+| Were zip files created on the device? | Zip files can indicate compression before exfiltration |
+| Was PowerShell used around the same time? | PowerShell may automate suspicious actions |
+| Were archiving tools installed or executed? | Tools like 7zip can be used to compress large amounts of data |
+| Was there network activity near the same timestamp? | Outbound network activity could indicate exfiltration |
+| Was the activity isolated to local staging? | Helps separate suspicious preparation from confirmed data loss |
+
+Data Sources Reviewed
+
+| Table | Purpose |
+|---|---|
+| `DeviceFileEvents` | Identify archive file creation and file movement |
+| `DeviceProcessEvents` | Review PowerShell and archiving tool execution |
+| `DeviceNetworkEvents` | Review outbound network activity around suspicious timestamps |
+
+Query: Search for Zip File Activity
+
+```kql
+DeviceFileEvents
+| where DeviceName == "vme-windows-hun"
+| where FileName endswith ".zip"
+| order by Timestamp desc
+```
+
+Finding
+
+The query returned multiple zip related file events.
+
+Several archive files were observed, including files being moved into a backup folder. This established that archive creation was taking place on the device and required additional process level investigation.
+
+Interpretation
+
+Zip file activity alone does not prove exfiltration, but it is relevant in an insider threat investigation because compressed archives are commonly used to package data before movement or theft.
+
+Stage 3 Data Analysis
+
+Goal
+
+Analyze the file activity and correlate it with process execution around the same time.
+
+The investigation focused on a specific zip file creation timestamp and searched process activity within a short time window before and after the event.
+
+Query: Review Process Activity Around Archive Creation
+
+```kql
+let VMName = "vme-windows-hun";
+let specificTime = datetime(2026-03-15T03:51:12.0878039Z);
+DeviceProcessEvents
+| where Timestamp between ((specificTime - 2m) .. (specificTime + 2m))
+| where DeviceName == VMName
+| order by Timestamp desc
+| project Timestamp, DeviceName, ActionType, FileName, ProcessCommandLine
+```
+
+Finding
+
+Around the same time that zip archive activity was observed, process telemetry showed PowerShell activity and 7zip related execution.
+
+The activity indicated that a PowerShell script silently installed 7zip and then used 7zip to compress employee data into an archive.
+
+Observed process activity included:
+
+| File Name | Activity | Assessment |
+|---|---|---|
+| `cmd.exe` | Started PowerShell execution | Suspicious command chain |
+| `powershell.exe` | Ran scripted activity | Suspicious automation |
+| `7z2408-x64.exe` | 7zip installer executed silently | Unauthorized archive tool installation |
+| `SearchProtocolHost.exe` | Normal Windows process observed nearby | Likely unrelated |
+| `7z.exe` | 7zip executed from `C:\ProgramData` | Archive utility used to compress data |
+
+Analysis Summary
+
+The timeline showed that the archive creation was not random user activity. It was connected to scripted PowerShell execution, silent 7zip installation, and use of 7zip to archive employee data.
+
+This supported the hypothesis that data may have been collected and staged locally.
+
+Stage 4 Investigation
+
+Goal
+
+Investigate whether the suspicious archive activity was followed by network activity that could indicate exfiltration.
+
+Query: Search Network Events Around Suspicious Archive Activity
+
+```kql
+let VMName = "vme-windows-hun";
+let specificTime = datetime(2026-03-15T03:51:12.0878039Z);
+DeviceNetworkEvents
+| where Timestamp between ((specificTime - 4m) .. (specificTime + 4m))
+| where DeviceName == VMName
+| order by Timestamp desc
+```
+
+Finding
+
+No network logs were identified that clearly showed data exfiltration around the time of the suspicious archive activity.
+
+Interpretation
+
+The investigation confirmed suspicious local archive creation and data staging activity. However, the available network telemetry did not show clear evidence that the archived data was transmitted externally.
+
+This means the activity should be treated as suspicious data staging, not confirmed data exfiltration.
+
+Investigation Summary
+
+The device showed evidence of scripted archive activity involving PowerShell and 7zip.
+
+The evidence supports that employee data was compressed and staged locally. However, there was no confirmed evidence from the reviewed network logs that the archived data was exfiltrated from the device.
+
+Stage 5 Response
+
+Goal
+
+Mitigate the potential insider threat and preserve evidence for management review.
+
+Response Actions Taken
+
+| Response Action | Purpose |
+|---|---|
+| Isolated the system | Prevented possible continued activity or future exfiltration |
+| Reported findings to management | Provided the employee manager with relevant evidence |
+| Documented archive activity | Preserved details of the suspicious file and process events |
+| Reviewed network activity | Checked whether the archive activity was followed by exfiltration |
+| Awaited management direction | Allowed leadership to determine next HR, legal, or security actions |
+
+Recommended Security Controls
+
+| Control | Reason |
+|---|---|
+| Enforce least privilege | Users should not have unnecessary local administrator rights |
+| Restrict unauthorized software installation | Prevents unapproved tools such as archivers from being installed |
+| Monitor archive tool usage | Detects use of 7zip, WinRAR, WinZip, and similar tools |
+| Enable data loss prevention controls | Helps detect or block sensitive data movement |
+| Alert on suspicious PowerShell activity | Identifies automation used for staging or exfiltration |
+| Monitor sensitive folders | Detects mass file access, copying, compression, or movement |
+| Restrict outbound destinations | Reduces ability to upload data to personal storage services |
+| Preserve endpoint evidence | Supports HR, legal, and incident response follow up |
+
+Stage 6 Documentation
+
+Goal
+
+Record the investigation process, findings, response actions, and lessons learned.
+
+Timeline Summary
+
+| Time or Phase | Event |
+|---|---|
+| Before investigation | Management raised concern about possible insider threat activity |
+| Initial file review | Zip archive activity was found in `DeviceFileEvents` |
+| Archive event identified | A suspicious archive creation timestamp was selected for pivoting |
+| Process review | `DeviceProcessEvents` was searched within two minutes before and after the archive timestamp |
+| Process finding | PowerShell activity, silent 7zip installation, and 7zip execution were observed |
+| Network review | `DeviceNetworkEvents` was searched within four minutes before and after the suspicious timestamp |
+| Network finding | No clear evidence of network exfiltration was found |
+| Response phase | The system was isolated |
+| Management notification | Findings were relayed to the employee manager |
+| Final determination | Suspicious local archiving occurred, but confirmed data exfiltration was not observed |
+
+Key Findings
+
+| Finding | Status |
+|---|---|
+| Zip archive activity was observed | Confirmed |
+| PowerShell activity occurred near archive creation | Confirmed |
+| 7zip was silently installed | Confirmed |
+| 7zip was used to compress employee data | Confirmed |
+| Data was staged locally | Confirmed |
+| Network exfiltration was observed | Not confirmed |
+| Device was isolated | Confirmed |
+| Management was notified | Confirmed |
+
+Stage 7 Improvement
+
+Goal
+
+Improve insider threat detection and refine the hunting process for future investigations.
+
+Security Improvements
+
+| Improvement | Value |
+|---|---|
+| Deploy DLP alerts | Detects possible sensitive data movement |
+| Restrict local administrator rights | Reduces ability to install unauthorized tools |
+| Block unauthorized archive utilities | Prevents users from easily compressing large data sets |
+| Monitor PowerShell execution | Improves visibility into scripted activity |
+| Alert on silent software installation | Detects suspicious tool deployment |
+| Monitor archive creation in sensitive folders | Identifies possible data staging |
+| Restrict access to sensitive data | Limits what a single employee can collect |
+| Review outbound data transfer logs | Helps identify possible exfiltration paths |
+
+Hunting Process Improvements
+
+| Improvement | Reason |
+|---|---|
+| Search for common archive tools | Captures more than just `.zip` files |
+| Pivot from file events into process events | Connects archive creation to the responsible process |
+| Search within a time window around suspicious events | Helps identify related activity |
+| Review network events after archive creation | Checks for possible exfiltration |
+| Use dynamic lists for archive applications | Makes queries easier to reuse |
+
+Improved Query: Search for Common Archive Applications
+
+```kql
+let archive_applications = dynamic(["winrar.exe", "7z.exe", "winzip32.exe",
+"peazip.exe", "Bandizip.exe", "UniExtract.exe", "POWERARC.EXE", "IZArc.exe",
+"AshampooZIP.exe", "FreeArc.exe"]);
+let VMName = "vme-windows-hun";
+DeviceProcessEvents
+| where FileName has_any(archive_applications)
+| where DeviceName == VMName
+| order by Timestamp desc
+| project Timestamp, DeviceName, ActionType, FileName, ProcessCommandLine
+```
+
+MITRE ATT&CK Mapping
+
+| Technique ID | Technique Name | Relevance |
+|---|---|---|
+| `T1059.001` | Command and Scripting Interpreter: PowerShell | PowerShell was used to execute scripted activity |
+| `T1105` | Ingress Tool Transfer | 7zip was downloaded or installed through scripted activity |
+| `T1560.001` | Archive Collected Data: Archive via Utility | 7zip was used to compress employee data |
+| `T1074.001` | Data Staged: Local Data Staging | Employee data was archived locally before possible exfiltration |
+
+Final Conclusion
+
+This threat hunt identified suspicious local data staging activity on `vme-windows-hun`.
+
+The investigation found that zip archive activity occurred on the device and that related process activity showed PowerShell execution, silent 7zip installation, and use of 7zip to compress employee data.
+
+The activity was suspicious because it matched behavior commonly associated with insider threat preparation, including archive creation and local staging of data.
+
+However, the reviewed network telemetry did not show clear evidence that the archived data was exfiltrated from the device.
+
+The system was isolated, and the findings were reported to management for further action.
+
+This project demonstrates the importance of monitoring archive creation, PowerShell execution, unauthorized tool installation, and network activity together when investigating possible insider threat behavior.
